@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: school-postgres
+    environment:
+      POSTGRES_USER: school
+      POSTGRES_PASSWORD: school123
+      POSTGRES_DB: school_db
+      TZ: Africa/Monrovia
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U school"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: school-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: school-mailhog
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    environment:
+      TZ: Africa/Monrovia
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/dockerfiles/Dockerfile.api
+    container_name: school-api
+    environment:
+      NODE_ENV: development
+      TZ: Africa/Monrovia
+      DATABASE_URL: postgresql://school:school123@postgres:5432/school_db
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-secret-change-in-production
+      JWT_REFRESH_SECRET: dev-refresh-secret-change-in-production
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_SECURE: "false"
+      SMTP_FROM: noreply@school.local
+      API_PORT: 4000
+      API_HOST: 0.0.0.0
+      SEED_ADMIN_EMAIL: admin@school.local
+      SEED_ADMIN_PASSWORD: Admin123!
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/app/uploads
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed && node dist/main.js"
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/dockerfiles/Dockerfile.web
+    container_name: school-web
+    environment:
+      NODE_ENV: development
+      TZ: Africa/Monrovia
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+  worker:
+    build:
+      context: .
+      dockerfile: infra/dockerfiles/Dockerfile.worker
+    container_name: school-worker
+    environment:
+      NODE_ENV: development
+      TZ: Africa/Monrovia
+      REDIS_URL: redis://redis:6379
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_SECURE: "false"
+      SMTP_FROM: noreply@school.local
+      WORKER_CONCURRENCY: 5
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/app/uploads
+
+volumes:
+  postgres_data:
+  redis_data:
