@@ -51,9 +51,6 @@ uploads/
 tmp/
 temp/
 
-# Docker
-.dockerignore
-
 # Cache
 .cache
 .parcel-cache
