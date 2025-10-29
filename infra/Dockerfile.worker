@@ -1,0 +1,38 @@
+FROM node:20-alpine AS base
+
+FROM base AS deps
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+COPY apps/worker/package.json ./apps/worker/
+COPY packages/shared/package.json ./packages/shared/
+
+RUN npm ci
+
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+RUN npm run build --workspace=@school-management/shared
+RUN npm run build --workspace=@school-management/worker
+
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV production
+ENV TZ=Africa/Monrovia
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 worker
+
+COPY --from=builder /app/apps/worker/dist ./dist
+COPY --from=builder /app/apps/worker/package.json ./
+COPY --from=deps /app/node_modules ./node_modules
+
+RUN mkdir -p /app/reports
+RUN chown -R worker:nodejs /app
+
+USER worker
+
+CMD ["node", "dist/main.js"]

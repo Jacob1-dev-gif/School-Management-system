@@ -1,0 +1,135 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: sms_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: school_management
+      TZ: Africa/Monrovia
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: sms_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Mailhog (Email testing in dev)
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: sms_mailhog
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
+    environment:
+      TZ: Africa/Monrovia
+
+  # API
+  api:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.api
+    container_name: sms_api
+    ports:
+      - "4000:4000"
+    environment:
+      TZ: Africa/Monrovia
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/school_management?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-secret-key-change-in-production
+      JWT_REFRESH_SECRET: dev-refresh-secret-key
+      SEED_ADMIN_EMAIL: admin@school.local
+      SEED_ADMIN_PASSWORD: Admin123!
+      PORT: 4000
+      CORS_ORIGIN: http://localhost:3000
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_SECURE: false
+      SMTP_FROM: noreply@school.local
+      SMS_PROVIDER: log
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./packages/shared:/app/packages/shared
+      - api_uploads:/app/uploads
+      - api_reports:/app/reports
+      - /app/node_modules
+      - /app/apps/api/node_modules
+    command: sh -c "npm run prisma:deploy && npm run prisma:seed && npm run dev"
+
+  # Worker
+  worker:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.worker
+    container_name: sms_worker
+    environment:
+      TZ: Africa/Monrovia
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/school_management?schema=public
+      REDIS_URL: redis://redis:6379
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_SECURE: false
+      SMTP_FROM: noreply@school.local
+      SMS_PROVIDER: log
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/worker:/app/apps/worker
+      - ./packages/shared:/app/packages/shared
+      - api_reports:/app/reports
+      - /app/node_modules
+      - /app/apps/worker/node_modules
+
+  # Web Frontend
+  web:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.web
+    container_name: sms_web
+    ports:
+      - "3000:3000"
+    environment:
+      TZ: Africa/Monrovia
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    depends_on:
+      - api
+    volumes:
+      - ./apps/web:/app/apps/web
+      - ./packages/shared:/app/packages/shared
+      - /app/node_modules
+      - /app/apps/web/node_modules
+      - /app/apps/web/.next
+
+volumes:
+  postgres_data:
+  redis_data:
+  api_uploads:
+  api_reports:
