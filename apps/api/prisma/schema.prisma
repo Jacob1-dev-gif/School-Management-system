@@ -206,6 +206,7 @@ model Term {
   reportCards    ReportCard[]
   feeSchedules   FeeSchedule[]
 
+  @@unique([academicYearId, type])
   @@index([academicYearId])
   @@index([current])
   @@map("terms")
