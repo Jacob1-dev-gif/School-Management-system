@@ -1,0 +1,54 @@
+FROM node:20-alpine AS base
+
+# Install dependencies only when needed
+FROM base AS deps
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json* ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/shared/package.json ./packages/shared/
+
+# Install dependencies
+RUN npm ci
+
+# Build shared package
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Generate Prisma Client
+WORKDIR /app/apps/api
+RUN npx prisma generate
+
+# Build application
+WORKDIR /app
+RUN npm run build --workspace=@school-management/shared
+RUN npm run build --workspace=@school-management/api
+
+# Production image
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV production
+ENV TZ=Africa/Monrovia
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nestjs
+
+# Copy necessary files
+COPY --from=builder /app/apps/api/dist ./dist
+COPY --from=builder /app/apps/api/prisma ./prisma
+COPY --from=builder /app/apps/api/package.json ./
+COPY --from=deps /app/node_modules ./node_modules
+
+# Create directories for uploads and reports
+RUN mkdir -p /app/uploads /app/reports
+RUN chown -R nestjs:nodejs /app
+
+USER nestjs
+
+EXPOSE 4000
+
+CMD ["node", "dist/main.js"]
