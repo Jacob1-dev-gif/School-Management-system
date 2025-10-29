@@ -1,0 +1,25 @@
+{
+  "name": "@school/worker",
+  "version": "1.0.0",
+  "description": "Background worker for School Management System",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.8.0",
+    "@school/shared": "*",
+    "bullmq": "^5.1.1",
+    "dotenv": "^16.3.1",
+    "ioredis": "^5.3.2",
+    "nodemailer": "^6.9.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/nodemailer": "^6.4.14",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
