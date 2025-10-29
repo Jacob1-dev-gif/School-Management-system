@@ -1,0 +1,60 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Testing
+coverage
+*.lcov
+
+# Production
+build
+dist
+.next
+out
+
+# Environment
+.env
+.env*.local
+.env.production
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+*.pem
+Thumbs.db
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Turbo
+.turbo
+
+# Prisma
+prisma/migrations/**/*.sql
+!prisma/migrations/**/migration.sql
+
+# Uploads & temp
+uploads/
+tmp/
+temp/
+
+# Docker
+.dockerignore
+
+# Cache
+.cache
+.parcel-cache
+.eslintcache
